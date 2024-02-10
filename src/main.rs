@@ -3,6 +3,8 @@ extern crate nix;
 use nix::sched::{unshare, CloneFlags};
 use std::process::Command;
 
+mod cgroup;
+
 fn main() {
     // Attempt to create a new PID namespace
     match unshare(CloneFlags::CLONE_NEWPID) {
@@ -14,12 +16,16 @@ fn main() {
     match Command::new("sh")
         .arg("-c")
         .arg("echo hello from the isolated namespace; sleep 1; ps aux")
-        .spawn() {
+        .spawn()
+    {
         Ok(mut child) => {
             // Wait for the child process to complete
             child.wait().unwrap();
             println!("Child process within the new PID namespace has finished execution");
-        },
-        Err(e) => eprintln!("Failed to execute child process in new PID namespace: {}", e),
+        }
+        Err(e) => eprintln!(
+            "Failed to execute child process in new PID namespace: {}",
+            e
+        ),
     }
 }
