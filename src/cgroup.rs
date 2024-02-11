@@ -34,8 +34,8 @@ impl Cgroup {
     /// `cpu_max_quota`: CPU time (μs) in `period`. `-1` for no limit.
     /// `cpu_max_period`: Period length (μs).
     /// `cpu_weight`: weight (1-10000) for allocating CPU time under contention.
-    /// `limit`: Memory limit in bytes.
-    /// `limit`: Memory limit in bytes.
+    /// `memory_max`: Memory limit in bytes.
+    /// `memory_swap_max`: Swap memory limit in bytes.
     pub fn build(
         name: &str,
         cpu_max_quota: Option<i64>,
@@ -104,13 +104,13 @@ impl Cgroup {
         Ok(())
     }
 
-    /// Sets max memory in bytes.
+    /// Sets memory limit in bytes.
     pub fn set_memory_max(&self, memory_max: u64) -> io::Result<()> {
         fs::write(self.path.join("memory.max"), memory_max.to_string())?;
         Ok(())
     }
 
-    /// Sets max swap memory in bytes.
+    /// Sets swap memory limit in bytes.
     pub fn set_memory_swap_max(&self, memory_swap_max: u64) -> io::Result<()> {
         fs::write(
             self.path.join("memory.swap.max"),
