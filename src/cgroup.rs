@@ -4,8 +4,11 @@ use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::PathBuf;
 
-mod cpuweight;
-use cpuweight::CPUWeight;
+mod cpu_max;
+use cpu_max::CPUMax;
+
+mod cpu_weight;
+use cpu_weight::CPUWeight;
 
 mod cgroup_error;
 use cgroup_error::CgroupError;
@@ -13,6 +16,7 @@ use cgroup_error::CgroupError;
 #[derive(Debug)]
 pub struct Cgroup {
     path: PathBuf,
+    cpu_max: CPUMax,
     cpu_weight: CPUWeight,
 }
 
@@ -22,15 +26,33 @@ impl Cgroup {
     /// Creates a new Cgroup with the specified name.
     /// `name`: The name for the new cgroup.
     /// `cpu_weight`: weight (1-10000) for allocating CPU time under contention.
-    pub fn build(name: &str, cpu_weight: Option<u64>) -> Result<Self> {
+    pub fn build(
+        name: &str,
+        cpu_max_quota: Option<i64>,
+        cpu_max_period: Option<u64>,
+        cpu_weight: Option<u64>,
+    ) -> Result<Self> {
         let path = PathBuf::from(format!("/sys/fs/cgroup/{name}"));
+
+        let cpu_max = match (cpu_max_quota, cpu_max_period) {
+            (Some(q), Some(p)) => CPUMax::new(q, p),
+            _ => CPUMax::default(),
+        };
 
         let cpu_weight = match cpu_weight {
             Some(w) => CPUWeight::build(w)?,
             None => CPUWeight::default(),
         };
 
-        Ok(Self { path, cpu_weight })
+        Ok(Self {
+            path,
+            cpu_max,
+            cpu_weight,
+        })
+    }
+
+    pub fn build_default(name: &str) -> Result<Self> {
+        Cgroup::build(name, None, None, None)
     }
 
     /// Creates the cgroup in the system.
@@ -78,12 +100,12 @@ impl Cgroup {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
+    use std::{fs, num::NonZeroI128};
 
     #[test]
     fn test_cgroup_create_and_delete() {
         let test_cgroup_name = "test_cgroup";
-        let cg = Cgroup::build(test_cgroup_name, None).unwrap();
+        let cg = Cgroup::build_default(test_cgroup_name).unwrap();
 
         assert!(cg.create().is_ok(), "Cgroup should be created successfully");
 

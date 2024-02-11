@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::fmt;
 
-use crate::cgroup::cpuweight::CPUWeightError;
+use crate::cgroup::cpu_weight::CPUWeightError;
 
 #[derive(Debug)]
 pub enum CgroupError {
