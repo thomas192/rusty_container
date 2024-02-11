@@ -22,7 +22,8 @@ impl Default for CPUMax {
     fn default() -> Self {
         CPUMax {
             quota: -1,
-            period: 100_000, // does not matter when `quota` is set to -1
+            // `period` has no effect  when `quota` is set to -1
+            period: 100_000,
         }
     }
 }

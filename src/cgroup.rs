@@ -1,5 +1,3 @@
-use std::error::Error;
-use std::fmt;
 use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::PathBuf;
@@ -10,6 +8,12 @@ use cpu_max::CPUMax;
 mod cpu_weight;
 use cpu_weight::CPUWeight;
 
+mod memory_max;
+use memory_max::MemoryMax;
+
+mod memory_swap_max;
+use memory_swap_max::MemorySwapMax;
+
 mod cgroup_error;
 use cgroup_error::CgroupError;
 
@@ -18,6 +22,8 @@ pub struct Cgroup {
     path: PathBuf,
     cpu_max: CPUMax,
     cpu_weight: CPUWeight,
+    memory_max: MemoryMax,
+    memory_swap_max: MemorySwapMax,
 }
 
 pub type Result<T> = std::result::Result<T, CgroupError>;
@@ -25,12 +31,16 @@ pub type Result<T> = std::result::Result<T, CgroupError>;
 impl Cgroup {
     /// Creates a new Cgroup with the specified name.
     /// `name`: The name for the new cgroup.
+    /// `cpu_max_quota`: CPU time (μs) in `period`. `-1` for no limit.
+    /// `cpu_max_period`: Period length (μs).
     /// `cpu_weight`: weight (1-10000) for allocating CPU time under contention.
     pub fn build(
         name: &str,
         cpu_max_quota: Option<i64>,
         cpu_max_period: Option<u64>,
         cpu_weight: Option<u64>,
+        memory_max: Option<u64>,
+        memory_swap_max: Option<u64>,
     ) -> Result<Self> {
         let path = PathBuf::from(format!("/sys/fs/cgroup/{name}"));
 
@@ -44,15 +54,27 @@ impl Cgroup {
             None => CPUWeight::default(),
         };
 
+        let memory_max = match memory_max {
+            Some(u) => MemoryMax::new(Some(u)),
+            None => MemoryMax::default(),
+        };
+
+        let memory_swap_max = match memory_swap_max {
+            Some(u) => MemorySwapMax::new(Some(u)),
+            None => MemorySwapMax::default(),
+        };
+
         Ok(Self {
             path,
             cpu_max,
             cpu_weight,
+            memory_max,
+            memory_swap_max,
         })
     }
 
     pub fn build_default(name: &str) -> Result<Self> {
-        Cgroup::build(name, None, None, None)
+        Cgroup::build(name, None, None, None, None, None)
     }
 
     /// Creates the cgroup in the system.
@@ -68,8 +90,6 @@ impl Cgroup {
     }
 
     /// Sets CPU usage limit.
-    /// `quota`: CPU time (μs) in `period`. `-1` for no limit.
-    /// `period`: Period length (μs).
     pub fn set_cpu_max(&self, quota: i64, period: u64) -> io::Result<()> {
         let max_value = format!("{} {}", quota, period);
         fs::write(self.path.join("cpu.max"), max_value)?;

@@ -18,6 +18,7 @@ impl Error for CPUWeightError {}
 
 impl Default for CPUWeight {
     fn default() -> Self {
+        // Default value set by the Linux kernel when creating a new cgroup
         Self(100)
     }
 }
