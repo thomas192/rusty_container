@@ -1,17 +1,36 @@
+use std::error::Error;
+use std::fmt;
 use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::PathBuf;
 
+mod cpuweight;
+use cpuweight::CPUWeight;
+
+mod cgroup_error;
+use cgroup_error::CgroupError;
+
+#[derive(Debug)]
 pub struct Cgroup {
     path: PathBuf,
+    cpu_weight: CPUWeight,
 }
+
+pub type Result<T> = std::result::Result<T, CgroupError>;
 
 impl Cgroup {
     /// Creates a new Cgroup with the specified name.
     /// `name`: The name for the new cgroup.
-    pub fn new(name: &str) -> Self {
+    /// `cpu_weight`: weight (1-10000) for allocating CPU time under contention.
+    pub fn build(name: &str, cpu_weight: Option<u64>) -> Result<Self> {
         let path = PathBuf::from(format!("/sys/fs/cgroup/{name}"));
-        Cgroup { path }
+
+        let cpu_weight = match cpu_weight {
+            Some(w) => CPUWeight::build(w)?,
+            None => CPUWeight::default(),
+        };
+
+        Ok(Self { path, cpu_weight })
     }
 
     /// Creates the cgroup in the system.
@@ -36,14 +55,7 @@ impl Cgroup {
     }
 
     /// Sets the CPU weight.
-    /// `weight`: weight (1-10000) for allocating CPU time under contention.
     pub fn set_cpu_weight(&self, weight: u64) -> io::Result<()> {
-        if weight < 1 || weight > 10000 {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "CPU weight must be between 1 and 10000.",
-            ));
-        }
         fs::write(self.path.join("cpu.weight"), weight.to_string())?;
         Ok(())
     }
@@ -71,7 +83,7 @@ mod tests {
     #[test]
     fn test_cgroup_create_and_delete() {
         let test_cgroup_name = "test_cgroup";
-        let cg = Cgroup::new(test_cgroup_name);
+        let cg = Cgroup::build(test_cgroup_name, None).unwrap();
 
         assert!(cg.create().is_ok(), "Cgroup should be created successfully");
 
