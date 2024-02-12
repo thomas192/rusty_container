@@ -17,6 +17,9 @@ use memory_swap_max::MemorySwapMax;
 mod cgroup_error;
 use cgroup_error::CgroupError;
 
+mod io_max;
+use io_max::IOMax;
+
 #[derive(Debug)]
 pub struct Cgroup {
     path: PathBuf,
@@ -24,18 +27,37 @@ pub struct Cgroup {
     cpu_weight: CPUWeight,
     memory_max: MemoryMax,
     memory_swap_max: MemorySwapMax,
+    io_max: IOMax,
 }
 
 pub type Result<T> = std::result::Result<T, CgroupError>;
 
 impl Cgroup {
     /// Creates a new Cgroup with the specified name.
+    ///
     /// `name`: The name for the new cgroup.
+    ///
     /// `cpu_max_quota`: CPU time (μs) in `period`. `-1` for no limit.
+    ///
     /// `cpu_max_period`: Period length (μs).
+    ///
     /// `cpu_weight`: weight (1-10000) for allocating CPU time under contention.
+    ///
     /// `memory_max`: Memory limit in bytes.
+    ///
     /// `memory_swap_max`: Swap memory limit in bytes.
+    ///
+    /// `device_read_bps`: Device read bandwidth limit in bytes per second.
+    /// Format: `/dev/device_name:bytes_per_second`
+    ///
+    /// `device_write_bps`: Device write bandwidth limit in bytes per second.
+    /// Format: `/dev/device_name:bytes_per_second`
+    ///
+    /// `device_read_iops`: Device read limit in operations per second.
+    /// Format: `/dev/device_name:ops_per_second`
+    ///
+    /// `device_write_iops`: Device write limit in operations per second.
+    /// Format: `/dev/device_name:ops_per_second`
     pub fn build(
         name: &str,
         cpu_max_quota: Option<i64>,
@@ -43,6 +65,10 @@ impl Cgroup {
         cpu_weight: Option<u64>,
         memory_max: Option<u64>,
         memory_swap_max: Option<u64>,
+        device_read_bps: Option<String>,
+        device_write_bps: Option<String>,
+        device_read_iops: Option<String>,
+        device_write_iops: Option<String>,
     ) -> Result<Self> {
         let path = PathBuf::from(format!("/sys/fs/cgroup/{name}"));
 
@@ -66,17 +92,33 @@ impl Cgroup {
             None => MemorySwapMax::default(),
         };
 
+        let io_max = match (
+            &device_read_bps,
+            &device_write_bps,
+            &device_read_iops,
+            &device_write_iops,
+        ) {
+            (None, None, None, None) => IOMax::default(),
+            _ => IOMax::build(
+                device_read_bps,
+                device_write_bps,
+                device_read_iops,
+                device_write_iops,
+            )?,
+        };
+
         Ok(Self {
             path,
             cpu_max,
             cpu_weight,
             memory_max,
             memory_swap_max,
+            io_max,
         })
     }
 
     pub fn build_default(name: &str) -> Result<Self> {
-        Cgroup::build(name, None, None, None, None, None)
+        Cgroup::build(name, None, None, None, None, None, None, None, None, None)
     }
 
     /// Creates the cgroup in the system.
@@ -126,7 +168,7 @@ mod tests {
     use std::{fs, num::NonZeroI128};
 
     #[test]
-    fn test_cgroup_create_and_delete() {
+    fn create_and_delete() {
         let test_cgroup_name = "test_cgroup";
         let cg = Cgroup::build_default(test_cgroup_name).unwrap();
 

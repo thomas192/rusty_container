@@ -16,17 +16,17 @@ impl fmt::Display for CPUWeightError {
 
 impl Error for CPUWeightError {}
 
+#[derive(Debug)]
+pub struct CPUWeight(u64);
+
+pub type Result<T> = std::result::Result<T, CPUWeightError>;
+
 impl Default for CPUWeight {
     fn default() -> Self {
         // Default value set by the Linux kernel when creating a new cgroup
         Self(100)
     }
 }
-
-#[derive(Debug)]
-pub struct CPUWeight(u64);
-
-pub type Result<T> = std::result::Result<T, CPUWeightError>;
 
 impl CPUWeight {
     pub fn build(weight: u64) -> Result<Self> {
@@ -47,7 +47,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_cpuweight_build() {
+    fn cpu_weight_build() {
         let res = CPUWeight::build(20000);
         assert!(matches!(res, Err(CPUWeightError::OutOfRange)));
 
